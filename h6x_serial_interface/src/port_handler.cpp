@@ -19,7 +19,7 @@ namespace h6x_serial_interface
 using namespace std::chrono_literals;
 
 PortHandler::PortHandler(const std::string & dev)
-: dev_(dev), timeout_ms_(30ms), is_timer_canceled_(false), io_() {}
+: dev_(dev), timeout_ms_(30ms), io_() {}
 
 
 void PortHandler::set_timeout_ms(const std::chrono::milliseconds timeout_ms)
@@ -61,13 +61,6 @@ bool PortHandler::open()
   try {
     if (!this->port_->is_open()) {
       this->port_->open(this->dev_);
-
-      const size_t tmp_len = 100;
-      char tmp_buf[100];
-      for (size_t i = 0; i < 10; ++i)
-      {
-        this->read(tmp_buf, tmp_len);
-      }
     }
   } catch (const boost::system::system_error & e) {
     RCLCPP_ERROR(this->getLogger(), "%s %s", this->dev_.c_str(), e.what());
@@ -99,16 +92,15 @@ ssize_t PortHandler::read(char * const buf, const size_t size)
 
   boost::system::error_code timer_error;
   boost::system::error_code read_error;
-  ssize_t len = 0;
+  ssize_t recv_len = 0;
+  bool is_timer_canceled = false;
 
-  this->is_timer_canceled_ = false;
   boost::asio::async_read(
     *this->port_,
     boost::asio::buffer(buf, size),
     boost::asio::transfer_at_least(1),
-    [this, &read_error, &len](const boost::system::error_code& error, std::size_t bytes_transferred)
+    [this, &read_error, &recv_len, &is_timer_canceled](const boost::system::error_code& error, std::size_t bytes_transferred)
       {
-        // if (error == boost::asio::error::operation_aborted)
         if (error)
         {
           read_error = error;
@@ -117,19 +109,19 @@ ssize_t PortHandler::read(char * const buf, const size_t size)
         {
           // SUCCESS async_read
           this->timer_->cancel();
-          this->is_timer_canceled_ = true;
+          is_timer_canceled = true;
 
-          len = bytes_transferred;
+          recv_len = bytes_transferred;
         }
       }
   );
 
   this->timer_->expires_from_now(this->timeout_ms_);
   this->timer_->async_wait(
-    [this, &timer_error](const boost::system::error_code& error)
+    [this, &timer_error, &is_timer_canceled](const boost::system::error_code& error)
     {
-      if (!error && !this->is_timer_canceled_) {
-          this->port_->cancel(); // 通信処理をキャンセルする。受信ハンドラがエラーになる
+      if (!error && !is_timer_canceled) {
+          this->port_->cancel();
           timer_error = error;
       }
 
@@ -142,18 +134,18 @@ ssize_t PortHandler::read(char * const buf, const size_t size)
   if (timer_error)
   {
     // timeout
-    RCLCPP_ERROR(this->getLogger(), "TIMEOUT ERROR %s", timer_error.message().c_str());
+    RCLCPP_ERROR(this->getLogger(), "TIMEOUT ERROR: %s", timer_error.message().c_str());
     return -1;
   }
   if (read_error)
   {
     // read error
-    RCLCPP_ERROR(this->getLogger(), "READ ERROR %s", read_error.message().c_str());
+    RCLCPP_ERROR(this->getLogger(), "READ ERROR: %s", read_error.message().c_str());
     return -1;
   }
 
-  // RCLCPP_INFO(this->getLogger(), "Read %d bytes", len);
-  return len;
+  // RCLCPP_INFO(this->getLogger(), "Read %d bytes", recv_len);
+  return recv_len;
 }
 
 ssize_t PortHandler::readUntil(std::stringstream & buf, const char delimiter) const

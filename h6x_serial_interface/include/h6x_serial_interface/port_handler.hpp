@@ -37,7 +37,6 @@ private:
   std::unique_ptr<boost::asio::serial_port> port_;
   std::chrono::milliseconds timeout_ms_;
   std::unique_ptr<boost::asio::steady_timer> timer_;
-  bool is_timer_canceled_;
 
 public:
   explicit PortHandler(const std::string &);
