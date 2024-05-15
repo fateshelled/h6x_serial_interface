@@ -14,10 +14,13 @@
 
 #pragma once
 
-#include <boost/asio.hpp>
 #include <memory>
+#include <chrono>
 #include <rclcpp/rclcpp.hpp>
 #include <string>
+#include <boost/asio.hpp>
+#include <boost/asio/deadline_timer.hpp>
+#include <boost/asio/steady_timer.hpp>
 
 #include "h6x_serial_interface/port_handler_base.hpp"
 
@@ -32,6 +35,9 @@ private:
   const std::string dev_;
   boost::asio::io_service io_;
   std::unique_ptr<boost::asio::serial_port> port_;
+  std::chrono::milliseconds timeout_ms_;
+  std::unique_ptr<boost::asio::steady_timer> timer_;
+  bool is_timer_canceled_;
 
 public:
   explicit PortHandler(const std::string &);
@@ -39,7 +45,10 @@ public:
   bool open();
   bool close();
 
-  ssize_t read(char * const, const size_t) const override;
+  void set_timeout_ms(const std::chrono::milliseconds timeout_ms);
+  std::chrono::milliseconds get_timeout_ms() const;
+
+  ssize_t read(char * const, const size_t) override;
   ssize_t readUntil(std::stringstream &, const char = '\r') const override;
   ssize_t write(const char * const, const size_t) const override;
 

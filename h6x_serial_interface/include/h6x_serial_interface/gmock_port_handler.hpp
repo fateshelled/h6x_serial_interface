@@ -34,7 +34,7 @@ class MockPortHandler : public PortHandlerBase
 public:
   MockPortHandler() : PortHandlerBase() {}
 
-  MOCK_METHOD(ssize_t, read, (char * const, const std::size_t), (const override));
+  MOCK_METHOD(ssize_t, read, (char * const, const std::size_t), (override));
   MOCK_METHOD(ssize_t, readUntil, (std::stringstream &, const char), (const override));
   MOCK_METHOD(ssize_t, write, (const char * const, const size_t), (const override));
 };
